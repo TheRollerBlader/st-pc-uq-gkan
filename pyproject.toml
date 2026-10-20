@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stpcuq-gkan"
+version = "0.1.0"
+description = "Physics-constrained graph Kolmogorov-Arnold network for localized geomagnetic and GIC-risk forecasts."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [
+  { name = "Ramcharit Podamala" },
+  { name = "Krish Bharadiya" },
+]
+keywords = ["space-weather", "geomagnetically-induced-currents", "kolmogorov-arnold-network"]
+dependencies = [
+  "numpy>=1.26",
+  "torch>=2.2",
+]
+
+[project.scripts]
+stpcuq-gkan = "stpcuq_gkan.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/TheRollerBlader/st-pc-uq-gkan"
+Explainer = "https://www.youtube.com/watch?v=td1P2qVrerA"
+
+[tool.setuptools.packages.find]
+include = ["stpcuq_gkan*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

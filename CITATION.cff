@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+title: "ST-PC-UQ-GKAN: Localized space-weather and GIC-risk forecasting"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - family-names: Podamala
+    given-names: Ramcharit
+    affiliation: Rock Hill High School
+  - family-names: Bharadiya
+    given-names: Krish
+    affiliation: Rock Hill High School
+repository-code: "https://github.com/TheRollerBlader/st-pc-uq-gkan"
+url: "https://www.youtube.com/watch?v=td1P2qVrerA"
+license: MIT
+version: 0.1.0
+date-released: "2026-10-20"
+keywords:
+  - space weather
+  - geomagnetically induced currents
+  - Kolmogorov-Arnold network
+  - graph neural network
+abstract: >-
+  Reference implementation of a spatiotemporal, physics-constrained,
+  uncertainty-quantified graph Kolmogorov-Arnold network for multi-station
+  geomagnetic and geoelectric forecasts. Prepared for the AGU 2026 Bright
+  STaRS poster session.

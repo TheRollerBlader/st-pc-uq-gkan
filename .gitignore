@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+outputs/
+.DS_Store
+
+# Confirmation receipt includes personal emails and a mailing address.
+Submission Completed.pdf
+
+# Original export. The same paper is versioned at docs/ST-PC-UQ-GKAN-architecture.pdf.
+Graph KAN Space Weather Forecast.pdf
