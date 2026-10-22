@@ -66,6 +66,38 @@ flowchart LR
 
 ReLoBRaLo updates task weights from the relative size of each loss, with an occasional lookback to an earlier epoch so one noisy batch cannot freeze the weights. The reference ACI update follows Gibbs and Candès (2021): a missed observation lowers the miscoverage level and the next interval gets wider. The architecture note writes the opposite sign; its text still asks for a wider interval at storm onset, which is the behavior implemented here.
 
+## Figures
+
+These panels are drawn from the synthetic demo (`python scripts/make_figures.py`). Physical units on the driver and keogram are the generator’s own storm, not an OMNI or SuperMAG archive.
+
+**Station graph.** Edges get stronger when two sites share a geomagnetic latitude. The curves are dipole-latitude contours, a stand-in for the auroral electrojets.
+
+![Sixteen-station graph colored by dipole latitude](docs/figures/station-graph.png)
+
+**Upstream driver.** Two southward IMF pulses. The second is the holdout.
+
+![Synthetic solar-wind stack and Newell coupling](docs/figures/solar-wind.png)
+
+**Ground response.** Stations are ordered by dipole latitude. The geoelectric panel marks the 1 V/km and 5 V/km GIC thresholds.
+
+![Keogram of northward perturbation and geoelectric field](docs/figures/keogram.png)
+
+**Newell coupling.** Dayside flux-opening rate over solar-wind speed and IMF Bz. Southward Bz turns the coupling on.
+
+![Newell coupling surface](docs/figures/newell-coupling.png)
+
+**Training.** Task losses and the ReLoBRaLo weights across 40 steps.
+
+![Training loss and adaptive task weights](docs/figures/training.png)
+
+**Forecast.** +10 minute north component at an auroral station and a low-latitude station. The band is the adaptive conformal interval.
+
+![Holdout forecast with conformal intervals](docs/figures/holdout-forecast.png)
+
+**KAN edges.** Gaussian basis functions, and three univariate splines from the trained forget gate.
+
+![Gaussian basis and learned KAN edge functions](docs/figures/kan-edges.png)
+
 ## Run the synthetic demo
 
 The demo builds a southward-IMF pulse, a 16-station graph, and forecasts at three horizons. It is a shape-and-training check you can run on a laptop. Scores are in normalized synthetic units.
@@ -81,6 +113,7 @@ Python 3.10–3.12 is the range to use. PyTorch does not currently publish wheel
 
 ```bash
 pytest
+python scripts/make_figures.py
 ```
 
 Expected solar-wind columns, once a real archive is attached, are `bx`, `by`, `bz` (nT), bulk speed (km/s), and proton density. Node features are geographic position, a dipole geomagnetic latitude, magnetic local time, a simple solar-zenith cosine, and the latest local magnetic vector. `stpcuq_gkan/data.py` documents that tensor contract.
@@ -107,8 +140,9 @@ Planned storm roles from the architecture note:
 
 ```
 stpcuq_gkan/          reference model, losses, synthetic storms, demo
+scripts/              rebuilds the README figures
 tests/                shape, physics, graph, ACI, and one training step
-docs/                 architecture overview
+docs/                 architecture note and figures
 .github/workflows/    pytest on Python 3.12
 ```
 

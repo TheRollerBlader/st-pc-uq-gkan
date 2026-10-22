@@ -34,6 +34,90 @@ NODE_COLUMNS = (
 
 
 @dataclass
+class ClockSeries:
+    """Physical-unit synthetic driver behind ``synthesize_storms``."""
+
+    minute: np.ndarray
+    bx: np.ndarray
+    by: np.ndarray
+    bz: np.ndarray
+    speed: np.ndarray
+    density: np.ndarray
+    coupling: np.ndarray
+    storm: np.ndarray
+    bn: np.ndarray
+    be: np.ndarray
+    bz_ground: np.ndarray
+    e_field: np.ndarray
+    graph: StationGraph
+    train_count: int
+    hold_start: int
+    origin0: int
+
+
+def synthetic_clock(
+    n_windows: int = 48,
+    lookback: int = 24,
+    horizons: tuple[int, ...] = (10, 30, 60),
+    seed: int = 0,
+) -> ClockSeries:
+    """Southward-IMF pulses and the ground response they drive."""
+    rng = np.random.default_rng(seed)
+    graph = build_station_graph()
+    horizon_max = max(horizons)
+    total = n_windows + lookback + horizon_max
+    minute = np.arange(total, dtype=np.float64)
+    gap = max(horizons)
+    train_count = n_windows // 2
+    hold_start = train_count + gap
+    if hold_start + 4 >= n_windows:
+        train_count = max(int(n_windows * 0.75), 2)
+        hold_start = train_count
+
+    def _pulse(center: float, width: float) -> np.ndarray:
+        return np.exp(-0.5 * ((minute - center) / width) ** 2)
+
+    origin0 = lookback - 1
+    train_center = origin0 + max(train_count * 0.45, 1.0)
+    hold_span = max(n_windows - hold_start, 1)
+    hold_center = origin0 + hold_start + hold_span * 0.45
+    storm = 0.9 * _pulse(train_center, 8.0) + _pulse(hold_center, 8.0)
+    bx = np.full(total, 1.5)
+    by = 5.0 * np.sin(minute / 7.0)
+    bz = 3.0 - 28.0 * storm
+    speed = 370.0 + 320.0 * storm
+    density = 4.0 + 10.0 * storm
+    coupling = newell_coupling_numpy(speed, by, bz)
+    coupling_n = coupling / (coupling.max() + 1e-6)
+    gain = np.exp(-0.5 * ((np.abs(graph.mlat) - 65.0) / 12.0) ** 2)
+    gain = 0.15 + 0.85 * gain
+    bn = gain[:, None] * (80.0 + 520.0 * coupling_n[None, :])
+    be = gain[:, None] * (20.0 * np.sin(minute / 11.0)[None, :])
+    bz_ground = 0.1 * bn
+    bn = bn + rng.normal(0.0, 4.0, size=bn.shape)
+    be = be + rng.normal(0.0, 2.0, size=be.shape)
+    e_field = np.clip(gain[:, None] * (0.2 + 7.5 * coupling_n[None, :]), 0.0, None)
+    return ClockSeries(
+        minute=minute,
+        bx=bx,
+        by=by,
+        bz=bz,
+        speed=speed,
+        density=density,
+        coupling=coupling,
+        storm=storm,
+        bn=bn,
+        be=be,
+        bz_ground=bz_ground,
+        e_field=e_field,
+        graph=graph,
+        train_count=train_count,
+        hold_start=hold_start,
+        origin0=origin0,
+    )
+
+
+@dataclass
 class StormBatch:
     solar_wind: Tensor
     nodes: Tensor
@@ -74,47 +158,15 @@ def synthesize_storms(
     horizons: tuple[int, ...] = (10, 30, 60),
     seed: int = 0,
 ) -> tuple[StormBatch, StormBatch]:
-    """Return consecutive train and holdout windows. Holdout is the last quarter."""
-    rng = np.random.default_rng(seed)
-    graph = build_station_graph()
-    horizon_max = max(horizons)
-    total = n_windows + lookback + horizon_max
-    clock = np.arange(total, dtype=np.float64)
-    gap = max(horizons)
-    train_count = n_windows // 2
-    hold_start = train_count + gap
-    if hold_start + 4 >= n_windows:
-        train_count = max(int(n_windows * 0.75), 2)
-        hold_start = train_count
-
-    def _pulse(center: float, width: float) -> np.ndarray:
-        return np.exp(-0.5 * ((clock - center) / width) ** 2)
-
-    # One pulse in the training block and a similar pulse in the holdout.
-    # The embargo between them is one full forecast horizon, so a training
-    # target at +60 minutes does not land on the holdout storm.
-    origin0 = lookback - 1
-    train_center = origin0 + max(train_count * 0.45, 1.0)
-    hold_span = max(n_windows - hold_start, 1)
-    hold_center = origin0 + hold_start + hold_span * 0.45
-    storm = 0.9 * _pulse(train_center, 8.0) + _pulse(hold_center, 8.0)
-    bx = np.full(total, 1.5)
-    by = 5.0 * np.sin(clock / 7.0)
-    bz = 3.0 - 28.0 * storm
-    speed = 370.0 + 320.0 * storm
-    density = 4.0 + 10.0 * storm
-    coupling = newell_coupling_numpy(speed, by, bz)
-    coupling_n = coupling / (coupling.max() + 1e-6)
-
-    gain = np.exp(-0.5 * ((np.abs(graph.mlat) - 65.0) / 12.0) ** 2)
-    gain = 0.15 + 0.85 * gain
-    bn = gain[:, None] * (80.0 + 520.0 * coupling_n[None, :])
-    be = gain[:, None] * (20.0 * np.sin(clock / 11.0)[None, :])
-    bz_ground = 0.1 * bn
-    bn = bn + rng.normal(0.0, 4.0, size=bn.shape)
-    be = be + rng.normal(0.0, 2.0, size=be.shape)
-
-    e_series = np.clip(gain[:, None] * (0.2 + 7.5 * coupling_n[None, :]), 0.0, None)
+    """Return consecutive train and holdout windows, split by a horizon-long embargo."""
+    clock = synthetic_clock(n_windows, lookback, horizons, seed)
+    graph = clock.graph
+    train_count = clock.train_count
+    hold_start = clock.hold_start
+    bx, by, bz = clock.bx, clock.by, clock.bz
+    speed, density, coupling = clock.speed, clock.density, clock.coupling
+    bn, be, bz_ground = clock.bn, clock.be, clock.bz_ground
+    e_series = clock.e_field
     north_envelope = bn.max(axis=0) - bn.min(axis=0)
 
     origins = np.arange(lookback - 1, lookback - 1 + n_windows)
