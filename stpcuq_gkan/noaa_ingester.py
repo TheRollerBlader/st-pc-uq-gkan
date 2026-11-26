@@ -8,10 +8,12 @@ the Graph Kolmogorov-Arnold Network (GKAN) GIC forecasting pipeline.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
+import urllib.request
 import numpy as np
 
 
@@ -33,9 +35,29 @@ class SolarWindObservation:
 class NoaaSwpcIngester:
     """Parses and aligns NOAA SWPC solar wind plasma, magnetic field, and planetary Kp feeds."""
 
+    MAG_5M_URL = "https://services.swpc.noaa.gov/products/solar-wind/mag-5-minute.json"
+    PLASMA_5M_URL = "https://services.swpc.noaa.gov/products/solar-wind/plasma-5-minute.json"
+    KP_1M_URL = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
+
     def __init__(self, southward_bz_threshold: float = -10.0, high_speed_threshold: float = 600.0):
         self.southward_bz_threshold = southward_bz_threshold
         self.high_speed_threshold = high_speed_threshold
+
+    @staticmethod
+    def parse_utc_epoch(time_tag: str) -> Optional[float]:
+        """Parses NOAA SWPC UTC timestamps ('YYYY-MM-DD HH:MM:SS(.fff)' or ISO-8601) to epoch seconds."""
+        cleaned = time_tag.strip()
+        if not cleaned:
+            return None
+        if cleaned.endswith("Z"):
+            cleaned = cleaned[:-1] + "+00:00"
+        try:
+            dt = datetime.fromisoformat(cleaned)
+        except ValueError:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.timestamp()
 
     @staticmethod
     def compute_newell_coupling(speed: float, by: float, bz: float) -> float:
@@ -138,10 +160,11 @@ class NoaaSwpcIngester:
             coupling = self.compute_newell_coupling(speed, by, bz)
             is_anomaly = (bz <= self.southward_bz_threshold) or (speed >= self.high_speed_threshold)
 
-            # Approximate epoch timestamp
+            # Parse true UTC timestamp epoch when available, falling back to 5-min index
+            epoch = self.parse_utc_epoch(t)
             obs = SolarWindObservation(
                 time_tag=t,
-                timestamp_epoch=float(len(observations) * 300),  # 5-min intervals
+                timestamp_epoch=epoch if epoch is not None else float(len(observations) * 300),
                 bx=bx,
                 by=by,
                 bz=bz,
@@ -155,6 +178,55 @@ class NoaaSwpcIngester:
             observations.append(obs)
 
         return observations
+
+    def parse_kp_payload(self, raw_data: List[List[Any]]) -> Dict[str, float]:
+        """Parses NOAA SWPC planetary K-index matrix into {time_tag: kp_value}."""
+        if not raw_data or len(raw_data) < 2:
+            return {}
+        header = [str(col).lower() for col in raw_data[0]]
+        try:
+            time_idx = header.index("time_tag")
+            kp_idx = header.index("kp") if "kp" in header else header.index("kp_index")
+        except ValueError:
+            return {}
+
+        kp_map: Dict[str, float] = {}
+        for row in raw_data[1:]:
+            try:
+                t = str(row[time_idx])
+                val = float(row[kp_idx])
+                if math.isfinite(val):
+                    kp_map[t] = val
+            except (ValueError, TypeError, IndexError):
+                continue
+        return kp_map
+
+    @staticmethod
+    def _default_fetch_json(url: str, timeout: float = 10.0) -> Any:
+        req = urllib.request.Request(url, headers={"User-Agent": "ST-PC-UQ-GKAN/1.0", "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
+    def fetch_live_swpc_window(
+        self,
+        fetch_json: Optional[Callable[[str], Any]] = None,
+        include_kp: bool = True,
+    ) -> Dict[str, Any]:
+        """Fetches and aligns live NOAA SWPC mag, plasma, and optional Kp feeds."""
+        fetcher = fetch_json or self._default_fetch_json
+        mag_raw = fetcher(self.MAG_5M_URL)
+        plasma_raw = fetcher(self.PLASMA_5M_URL)
+        mag_map = self.parse_mag_payload(mag_raw)
+        plasma_map = self.parse_plasma_payload(plasma_raw)
+        observations = self.align_and_build_series(mag_map, plasma_map)
+        kp_series = self.parse_kp_payload(fetcher(self.KP_1M_URL)) if include_kp else {}
+
+        return {
+            "observations": observations,
+            "solar_drivers": self.to_solar_driver_array(observations),
+            "kp_series": kp_series,
+            "anomaly_count": sum(1 for o in observations if o.is_anomaly),
+        }
 
     def to_solar_driver_array(self, observations: List[SolarWindObservation]) -> np.ndarray:
         """Converts observations into [N, 5] array matching SOLAR_COLUMNS: (bx, by, bz, speed, density)."""

@@ -52,3 +52,39 @@ class TestNoaaSwpcIngester:
         arr = ingester.to_solar_driver_array(obs)
         assert arr.shape == (2, 5)
         np.testing.assert_allclose(arr[0], [-2.5, 4.0, -12.5, 520.0, 8.5], rtol=1e-4)
+
+    def test_utc_epoch_kp_and_live_window_fetch(self):
+        ingester = NoaaSwpcIngester()
+        epoch = ingester.parse_utc_epoch("2026-11-26 09:00:00.000")
+        assert epoch is not None and epoch > 1_700_000_000
+
+        kp_payload = [
+            ["time_tag", "Kp", "a_running", "station_count"],
+            ["2026-11-26 06:00:00.000", "5.33", "56", "8"],
+            ["2026-11-26 09:00:00.000", "6.00", "80", "8"],
+        ]
+        kp_map = ingester.parse_kp_payload(kp_payload)
+        assert kp_map["2026-11-26 09:00:00.000"] == 6.0
+
+        mag_json = [
+            ["time_tag", "bx_gsm", "by_gsm", "bz_gsm", "lon_gsm", "lat_gsm", "bt"],
+            ["2026-11-26 09:00:00.000", "-3.0", "5.0", "-14.0", "120.0", "-50.0", "15.1"],
+        ]
+        plasma_json = [
+            ["time_tag", "density", "speed", "temperature"],
+            ["2026-11-26 09:00:00.000", "11.2", "680.0", "190000.0"],
+        ]
+
+        def fake_fetch(url: str):
+            if "mag-5-minute" in url:
+                return mag_json
+            if "plasma-5-minute" in url:
+                return plasma_json
+            return kp_payload
+
+        window = ingester.fetch_live_swpc_window(fetch_json=fake_fetch, include_kp=True)
+        assert len(window["observations"]) == 1
+        assert window["observations"][0].timestamp_epoch == epoch
+        assert window["anomaly_count"] == 1
+        assert window["solar_drivers"].shape == (1, 5)
+        assert window["kp_series"]["2026-11-26 09:00:00.000"] == 6.0
