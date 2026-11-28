@@ -1,6 +1,5 @@
-import pytest
 import numpy as np
-from stpcuq_gkan.noaa_ingester import NoaaSwpcIngester, SolarWindObservation
+from stpcuq_gkan.noaa_ingester import NoaaSwpcIngester
 
 
 class TestNoaaSwpcIngester:

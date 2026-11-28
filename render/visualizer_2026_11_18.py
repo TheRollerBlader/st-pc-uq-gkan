@@ -2,7 +2,7 @@
 Scheduled Milestone: UI & Visualization Components (2026-11-18).
 """
 
-from typing import Dict, Any, List, Tuple
+from typing import List
 
 
 def render_ascii_sparkline(values: List[float], width: int = 20) -> str:

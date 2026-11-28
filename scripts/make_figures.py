@@ -10,13 +10,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
 import matplotlib
-
-matplotlib.use("Agg")
-
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -25,12 +19,18 @@ from matplotlib.collections import LineCollection
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.lines import Line2D
 
-from stpcuq_gkan.conformal import AdaptiveConformalInference
-from stpcuq_gkan.data import synthetic_clock, synthesize_storms
-from stpcuq_gkan.graph import dipole_magnetic_latitude
-from stpcuq_gkan.model import ModelConfig, STPCUQGKAN
-from stpcuq_gkan.physics import newell_coupling_numpy
-from stpcuq_gkan.train import fit
+matplotlib.use("Agg")
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from stpcuq_gkan.conformal import AdaptiveConformalInference  # noqa: E402
+from stpcuq_gkan.data import synthetic_clock, synthesize_storms  # noqa: E402
+from stpcuq_gkan.graph import dipole_magnetic_latitude  # noqa: E402
+from stpcuq_gkan.model import ModelConfig, STPCUQGKAN  # noqa: E402
+from stpcuq_gkan.physics import newell_coupling_numpy  # noqa: E402
+from stpcuq_gkan.train import fit  # noqa: E402
 
 OUT = ROOT / "docs" / "figures"
 

@@ -13,6 +13,8 @@ from torch import Tensor, nn
 
 
 class RBFKANLayer(nn.Module):
+    centers: Tensor
+
     def __init__(
         self,
         in_features: int,

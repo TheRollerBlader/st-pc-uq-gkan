@@ -8,7 +8,6 @@ Validates:
 """
 
 import numpy as np
-import pytest
 import torch
 
 from stpcuq_gkan.conformal import AdaptiveConformalInference

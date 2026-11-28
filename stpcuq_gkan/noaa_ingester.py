@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 import json
 import math
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional
 import urllib.request
 import numpy as np
 

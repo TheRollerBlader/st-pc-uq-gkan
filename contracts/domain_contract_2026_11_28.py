@@ -2,7 +2,7 @@
 Scheduled Milestone: Type Safety, Linting & Polish (2026-11-28).
 """
 
-from typing import List, Tuple
+from typing import Tuple
 from pydantic import BaseModel, Field
 
 
